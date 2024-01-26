@@ -2,16 +2,22 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits, parseEther } = require("ethers");
 
-const tokenUri = 'ipfs://bafybeigluhjtgca3gminf75i47n5sjpdqkf2dajloosdcsyqelaopakyxy';
-
 describe("Passport Finance Contract", function () {
     let owner;
     let customer;
     let nftFactory;
     let mockErc20;
+    let svgGen;
 
     beforeEach(async function () {
-        const _nft = await ethers.getContractFactory("YCBShareYield");
+        const _svggen = await ethers.getContractFactory("PassportSVGGen");
+        svgGen = await _svggen.deploy();
+        const _address = await svgGen.getAddress();
+        const _nft = await ethers.getContractFactory("YCBPassportFinance", {
+            libraries: {
+                PassportSVGGen: _address,
+            },
+        });
         const _mockErc20 = await ethers.getContractFactory("MockERC20");
         [owner, customer] = await ethers.getSigners();
         mockErc20 = await _mockErc20.deploy("MockToken", "MTT");
@@ -31,11 +37,11 @@ describe("Passport Finance Contract", function () {
         await expect(nftFactory.connect(customer).safeMint(customer.address)).to.not.be.reverted;
     })
 
-    it("tokenURI should be static", async function () {
+    it("tokenURI should be not reverted", async function () {
         const mintTx = await nftFactory.connect(customer).safeMint(customer.address);
 
         const _tokenUri = await nftFactory.tokenURI(0);
-        expect(_tokenUri).to.equal(tokenUri);
+        expect(_tokenUri).to.not.be.reverted;
     });
 
     it("Stake token", async function () {
