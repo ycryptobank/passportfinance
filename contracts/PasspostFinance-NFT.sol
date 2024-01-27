@@ -16,7 +16,19 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
     mapping(uint256 => uint256) public lastRewardBlock;
     mapping(uint256 => uint256) public pendingRewardStakes;
     uint256 private rewardRate = 0.05 ether;
-    uint256 private reductionFactor;
+    uint256 private reductionFactor = 1;
+    uint256 private blockFreqRate = 20;
+    uint256 private quantityRate = 100;
+
+    event TokenMinted(address indexed to, uint256 tokenId);
+    event ReductionFactorUpdated(uint256 newReductionFactor, address contractAddress);
+    event RewardRateUpdated(uint256 newRewardRate, address contractAddress);
+    event BlockFreqRateUpdated(uint256 newBlockFreqRate, address contractAddress);
+    event QuantityRateUpdated(uint256 newQuantityRate, address contractAddress);
+    event TokensStaked(uint256 tokenId, uint256 amount, address staker);
+    event TokensUnstaked(uint256 tokenId, uint256 amount, address unstaker);
+    event RewardsClaimed(uint256 tokenId, uint256 rewards, address claimant);
+
 
     constructor(address initialOwner, address _sToken)
         ERC721("YCB Passport Finance", "YCBFinance")
@@ -34,9 +46,26 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         _unpause();
     }
 
-    function setReduction(uint256 _reductionFactor) public onlyOwner {
+    function updateReduction(uint256 _reductionFactor) public onlyOwner {
         reductionFactor = _reductionFactor;
+        emit ReductionFactorUpdated(_reductionFactor, address(this));
     }
+
+    function updateRewardRate(uint256 _rewardRate) public onlyOwner {
+        rewardRate = _rewardRate;
+        emit RewardRateUpdated(_rewardRate, address(this));
+    }
+
+    function updateBlockFreqRate(uint256 _blockFreqRate) public onlyOwner {
+        blockFreqRate = _blockFreqRate;
+        emit BlockFreqRateUpdated(_blockFreqRate, address(this));
+    }
+
+    function updateQuantityRate(uint256 _quantityRate) public onlyOwner {
+        quantityRate = _quantityRate;
+        emit QuantityRateUpdated(_quantityRate, address(this));
+    }
+
 
     function stakeTokens(uint256 tokenId, uint256 amount) public whenNotPaused {
         _requireOwned(tokenId);
@@ -46,6 +75,7 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         uint256 _currentAmount = stakes[tokenId];
         stakes[tokenId] = _currentAmount + amount;
         lastRewardBlock[tokenId] = block.number;
+        emit TokensStaked(tokenId, amount, msg.sender);
     }
 
     function unstakeTokens(uint256 tokenId) public {
@@ -57,6 +87,7 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         claimRewards(tokenId);
 
         sToken.transfer(msg.sender, totalAmount);
+        emit TokensUnstaked(tokenId, totalAmount, msg.sender);
     }
 
     function claimRewards(uint256 tokenId) public {
@@ -66,6 +97,7 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
             lastRewardBlock[tokenId] = block.number;
             delete pendingRewardStakes[tokenId];
             sToken.transfer(msg.sender, rewards);
+            emit RewardsClaimed(tokenId, rewards, msg.sender);
         }
     }
 
@@ -74,9 +106,9 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         uint256 _blocksSinceLastReward = block.number - lastRewardBlock[tokenId];
         uint256 _pendingReward = 0;
 
-        if (_blocksSinceLastReward >= 20) {
-            uint256 _rewardCycles = _blocksSinceLastReward / 20;
-            _pendingReward = (_rewardCycles * _currentStakedAmount / 100) * rewardRate / reductionFactor + pendingRewardStakes[tokenId];
+        if (_blocksSinceLastReward >= blockFreqRate) {
+            uint256 _rewardCycles = _blocksSinceLastReward / blockFreqRate;
+            _pendingReward = (_rewardCycles * _currentStakedAmount / quantityRate) * rewardRate / reductionFactor + pendingRewardStakes[tokenId];
         }
         
         return _pendingReward;
@@ -85,6 +117,7 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
     function safeMint(address to) public whenNotPaused {
         uint256 tokenId = _nextTokenId++;
         _safeMint(to, tokenId);
+       emit TokenMinted(to, tokenId);
     }
 
     // The following functions are overrides required by Solidity.
