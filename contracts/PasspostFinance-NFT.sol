@@ -5,10 +5,9 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import './PassportSVGGen.sol';
+import "./PassportSVGGen.sol";
 
 contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
-
     IERC20 public sToken;
     uint256 private _nextTokenId;
 
@@ -21,14 +20,24 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
     uint256 private quantityRate = 100;
 
     event TokenMinted(address indexed to, uint256 tokenId);
-    event ReductionFactorUpdated(uint256 newReductionFactor, address contractAddress);
+    event ReductionFactorUpdated(
+        uint256 newReductionFactor,
+        address contractAddress
+    );
     event RewardRateUpdated(uint256 newRewardRate, address contractAddress);
-    event BlockFreqRateUpdated(uint256 newBlockFreqRate, address contractAddress);
+    event BlockFreqRateUpdated(
+        uint256 newBlockFreqRate,
+        address contractAddress
+    );
     event QuantityRateUpdated(uint256 newQuantityRate, address contractAddress);
     event TokensStaked(uint256 tokenId, uint256 amount, address staker);
     event TokensUnstaked(uint256 tokenId, uint256 amount, address unstaker);
     event RewardsClaimed(uint256 tokenId, uint256 rewards, address claimant);
-
+    event TokensFlushed(
+        address indexed to,
+        address indexed token,
+        uint256 amount
+    );
 
     constructor(address initialOwner, address _sToken)
         ERC721("YCB Passport Finance", "YCBFinance")
@@ -66,7 +75,6 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         emit QuantityRateUpdated(_quantityRate, address(this));
     }
 
-
     function stakeTokens(uint256 tokenId, uint256 amount) public whenNotPaused {
         _requireOwned(tokenId);
         sToken.transferFrom(msg.sender, address(this), amount);
@@ -103,29 +111,48 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
 
     function pendingRewards(uint256 tokenId) public view returns (uint256) {
         uint256 _currentStakedAmount = stakes[tokenId];
-        uint256 _blocksSinceLastReward = block.number - lastRewardBlock[tokenId];
+        uint256 _blocksSinceLastReward = block.number -
+            lastRewardBlock[tokenId];
         uint256 _pendingReward = 0;
 
         if (_blocksSinceLastReward >= blockFreqRate) {
             uint256 _rewardCycles = _blocksSinceLastReward / blockFreqRate;
-            _pendingReward = (_rewardCycles * _currentStakedAmount / quantityRate) * rewardRate / reductionFactor + pendingRewardStakes[tokenId];
+            _pendingReward =
+                (((_rewardCycles * _currentStakedAmount) / quantityRate) *
+                    rewardRate) /
+                reductionFactor +
+                pendingRewardStakes[tokenId];
         }
-        
+
         return _pendingReward;
     }
 
     function safeMint(address to) public whenNotPaused {
         uint256 tokenId = _nextTokenId++;
         _safeMint(to, tokenId);
-       emit TokenMinted(to, tokenId);
+        emit TokenMinted(to, tokenId);
+    }
+
+    function flushStakeToken(address to, address erc20Address)
+        public
+        onlyOwner
+    {
+        IERC20 token = IERC20(erc20Address);
+        uint256 contractBalance = token.balanceOf(address(this));
+
+        require(contractBalance > 0, "No tokens to flush");
+        bool sent = token.transfer(to, contractBalance);
+        require(sent, "Token transfer failed");
+
+        emit TokensFlushed(to, erc20Address, contractBalance);
     }
 
     // The following functions are overrides required by Solidity.
-    function _update(address to, uint256 tokenId, address auth)
-        internal
-        override(ERC721, ERC721Pausable)
-        returns (address)
-    {
+    function _update(
+        address to,
+        uint256 tokenId,
+        address auth
+    ) internal override(ERC721, ERC721Pausable) returns (address) {
         return super._update(to, tokenId, auth);
     }
 
@@ -135,7 +162,12 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         override(ERC721)
         returns (string memory)
     {
-       _requireOwned(tokenId);
-        return PassportSVGGen.constructURI(tokenId, lastRewardBlock[tokenId], stakes[tokenId]);
+        _requireOwned(tokenId);
+        return
+            PassportSVGGen.constructURI(
+                tokenId,
+                lastRewardBlock[tokenId],
+                stakes[tokenId]
+            );
     }
 }
