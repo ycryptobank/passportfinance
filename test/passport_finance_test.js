@@ -177,23 +177,18 @@ describe("Passport Finance Contract", function () {
 
             const _tStakeAoumnt = await nftFactory.stakes(tokenId);
 
-            const blocksToAdvance = blockFreqRate + 20; // Example value
+            const blocksToAdvance = blockFreqRate + 20; 
             for (let i = 0; i < blocksToAdvance; i++) {
-                await ethers.provider.send('evm_mine', []); // This is a way to force block mining in tests
+                await ethers.provider.send('evm_mine', []); 
             }
 
             const newBlockNumber = await ethers.provider.getBlockNumber();
             const blocksSinceLastReward = newBlockNumber - currentBlockNumber;
             const rewardCycles = Math.floor(blocksSinceLastReward / blockFreqRate);
-            const expectedReward = (((rewardCycles * parseInt(stakedAmount)) / parseInt(quantityRate)) * parseInt(rewardRate)) / reductionFactor;
-
-            console.log(newBlockNumber, currentBlockNumber, blocksSinceLastReward, rewardCycles, expectedReward, expectedReward/10**15, parseInt(rewardRate)/10**15);
-
+            const expectedReward = parseInt(stakedAmount) * parseInt(rewardRate) / reductionFactor * rewardCycles / parseInt(quantityRate);
             const pendingReward = await nftFactory.pendingRewards(tokenId);
-
-            console.log(pendingReward, expectedReward, _tStakeAoumnt);
-
-            // expect(pendingReward).to.equal(expectedReward);
+            
+            expect(pendingReward).to.equal(BigInt(expectedReward));
         });
     });
 

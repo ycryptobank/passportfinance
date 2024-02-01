@@ -39,10 +39,10 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         uint256 amount
     );
 
-    constructor(address initialOwner, address _sToken)
-        ERC721("YCB Passport Finance", "YCBFinance")
-        Ownable(initialOwner)
-    {
+    constructor(
+        address initialOwner,
+        address _sToken
+    ) ERC721("YCB Passport Finance", "YCBFinance") Ownable(initialOwner) {
         sToken = IERC20(_sToken);
         reductionFactor = 1;
     }
@@ -110,17 +110,17 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
     }
 
     function pendingRewards(uint256 tokenId) public view returns (uint256) {
-        uint256 _currentStakedAmount = stakes[tokenId];
+        uint256 _currentStakedAmount = stakes[tokenId]; //10 ether
         uint256 _blocksSinceLastReward = block.number -
-            lastRewardBlock[tokenId];
+            lastRewardBlock[tokenId]; // 40
         uint256 _pendingReward = 0;
 
         if (_blocksSinceLastReward >= blockFreqRate) {
             uint256 _rewardCycles = _blocksSinceLastReward / blockFreqRate;
             _pendingReward =
-                (((_rewardCycles * _currentStakedAmount) / quantityRate) *
-                    rewardRate) /
-                reductionFactor +
+                (((_currentStakedAmount * rewardRate) / reductionFactor) *
+                    _rewardCycles) /
+                quantityRate +
                 pendingRewardStakes[tokenId];
         }
 
@@ -133,10 +133,10 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         emit TokenMinted(to, tokenId);
     }
 
-    function flushStakeToken(address to, address erc20Address)
-        public
-        onlyOwner
-    {
+    function flushStakeToken(
+        address to,
+        address erc20Address
+    ) public onlyOwner {
         IERC20 token = IERC20(erc20Address);
         uint256 contractBalance = token.balanceOf(address(this));
 
@@ -156,12 +156,9 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
         return super._update(to, tokenId, auth);
     }
 
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override(ERC721)
-        returns (string memory)
-    {
+    function tokenURI(
+        uint256 tokenId
+    ) public view override(ERC721) returns (string memory) {
         _requireOwned(tokenId);
         return
             PassportSVGGen.constructURI(
