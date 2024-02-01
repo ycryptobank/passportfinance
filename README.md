@@ -9,6 +9,6 @@ Contract for Passport Finance feature DeFi
 
 
 ## Progress
-- [ ] Implementation
-- [ ] Tests
+- [x] Implementation
+- [x] Tests
 - [ ] Audits
