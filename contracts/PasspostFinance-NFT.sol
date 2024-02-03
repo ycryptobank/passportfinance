@@ -110,9 +110,9 @@ contract YCBPassportFinance is ERC721, ERC721Pausable, Ownable {
     }
 
     function pendingRewards(uint256 tokenId) public view returns (uint256) {
-        uint256 _currentStakedAmount = stakes[tokenId]; //10 ether
+        uint256 _currentStakedAmount = stakes[tokenId];
         uint256 _blocksSinceLastReward = block.number -
-            lastRewardBlock[tokenId]; // 40
+            lastRewardBlock[tokenId];
         uint256 _pendingReward = 0;
 
         if (_blocksSinceLastReward >= blockFreqRate) {
