@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { parseUnits, parseEther } = require("ethers");
+const { parseUnits, parseEther, formatEther } = require("ethers");
 
 describe("Passport Finance Contract", function () {
     let owner;
@@ -167,7 +167,7 @@ describe("Passport Finance Contract", function () {
             await nftFactory.updateReduction(reductionFactor);
 
             const tokenId = 0;
-            const stakedAmount = parseEther("10");
+            const stakedAmount = parseEther("0.1");
             const currentBlockNumber = await ethers.provider.getBlockNumber();
 
             await nftFactory.connect(customer).safeMint(customer.address);
