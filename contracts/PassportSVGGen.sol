@@ -7,14 +7,14 @@ import "base64-sol/base64.sol";
 library PassportSVGGen {
     function constructURI(
         uint256 _tokenId,
-        uint256 _blocknumber,
+        address _contract,
         uint256 _stakeQuantity
     ) public pure returns (string memory) {
         string memory image = Base64.encode(
             bytes(
                 generateSVG(
                     uintToString(_tokenId),
-                    uintToString(_blocknumber),
+                    addressToString(_contract),
                     uintToString(_stakeQuantity)
                 )
             )
@@ -43,7 +43,7 @@ library PassportSVGGen {
 
     function generateSVG(
         string memory _tokenId,
-        string memory _blocknumber,
+        string memory _contract,
         string memory _stakeQuantity
     ) internal pure returns (string memory svg) {
         return
@@ -58,9 +58,9 @@ library PassportSVGGen {
                     '<text x="450" y="520" fill="#d4ade6" font-size="20" text-anchor="end">',
                     _tokenId,
                     "</text>",
-                    '<text x="450" y="540" fill="#f2f2f2" font-size="20" text-anchor="end">Last interaction at</text>',
+                    '<text x="450" y="540" fill="#f2f2f2" font-size="20" text-anchor="end">Pass Contract</text>',
                     '<text x="450" y="560" fill="green" font-size="20" text-anchor="end">',
-                    _blocknumber,
+                    _contract,
                     "</text>",
                     '<text x="450" y="580" fill="#f2f2f2" font-size="20" text-anchor="end">Stake</text>',
                     '<text x="450" y="600" fill="yellow" font-size="20" text-anchor="end">',
@@ -71,9 +71,11 @@ library PassportSVGGen {
             );
     }
 
-    function uintToString(
-        uint256 _value
-    ) internal pure returns (string memory) {
+    function uintToString(uint256 _value)
+        internal
+        pure
+        returns (string memory)
+    {
         // Handle zero case explicitly to simplify loop
         if (_value == 0) {
             return "0";
@@ -98,5 +100,22 @@ library PassportSVGGen {
         }
 
         return string(buffer);
+    }
+
+    function addressToString(address _addr)
+        public
+        pure
+        returns (string memory)
+    {
+        bytes32 value = bytes32(uint256(uint160(_addr)));
+        bytes memory alphabet = "0123456789abcdef";
+        bytes memory str = new bytes(42);
+        str[0] = "0";
+        str[1] = "x";
+        for (uint256 i = 0; i < 20; i++) {
+            str[2 + i * 2] = alphabet[uint8(value[i + 12] >> 4)];
+            str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
+        }
+        return string(str);
     }
 }
