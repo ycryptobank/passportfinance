@@ -6,12 +6,14 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./PassportSVGGen.sol";
 
 contract YCBPassportFinance is
     ERC721,
     ERC721Pausable,
-    Ownable
+    Ownable,
+    ReentrancyGuard
 {
     IERC20 public sToken;
     uint256 private _nextTokenId;
@@ -22,7 +24,7 @@ contract YCBPassportFinance is
     uint256 private rewardRate = 0.05 ether;
     uint256 private reductionFactor = 1;
     uint256 private blockFreqRate = 20;
-    uint256 private quantityRate = 100;
+    uint256 private quantityRate = 100 ether;
 
     event TTransfer(
         address indexed from,
@@ -101,7 +103,11 @@ contract YCBPassportFinance is
         emit QuantityRateUpdated(_quantityRate, address(this));
     }
 
-    function stakeTokens(uint256 tokenId, uint256 amount) public whenNotPaused {
+    function stakeTokens(uint256 tokenId, uint256 amount)
+        public
+        whenNotPaused
+        nonReentrant
+    {
         _requireOwned(tokenId);
         sToken.transferFrom(msg.sender, address(this), amount);
         // recalculate pending rewards + stake
@@ -116,15 +122,16 @@ contract YCBPassportFinance is
         _requireOwned(tokenId);
         uint256 totalAmount = stakes[tokenId];
 
-        delete stakes[tokenId];
-
         claimRewards(tokenId);
 
+        delete stakes[tokenId];
+        
         sToken.transfer(msg.sender, totalAmount);
+        
         emit TokensUnstaked(tokenId, totalAmount, msg.sender, address(this));
     }
 
-    function claimRewards(uint256 tokenId) public {
+    function claimRewards(uint256 tokenId) public nonReentrant {
         _requireOwned(tokenId);
         uint256 rewards = pendingRewards(tokenId);
         if (rewards > 0) {
@@ -153,7 +160,7 @@ contract YCBPassportFinance is
         return _pendingReward;
     }
 
-    function safeMint(address to) public whenNotPaused {
+    function safeMint(address to) public whenNotPaused nonReentrant {
         uint256 tokenId = _nextTokenId++;
         _safeMint(to, tokenId);
     }
