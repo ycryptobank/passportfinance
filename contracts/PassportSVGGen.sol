@@ -62,7 +62,7 @@ library PassportSVGGen {
                     '<text x="450" y="560" fill="green" font-size="20" text-anchor="end">',
                     _contract,
                     "</text>",
-                    '<text x="450" y="580" fill="#f2f2f2" font-size="20" text-anchor="end">Stake</text>',
+                    '<text x="450" y="580" fill="#f2f2f2" font-size="20" text-anchor="end">Stake in Wei</text>',
                     '<text x="450" y="600" fill="yellow" font-size="20" text-anchor="end">',
                     _stakeQuantity,
                     "</text>",
