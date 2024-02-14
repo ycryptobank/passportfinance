@@ -1,10 +1,12 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits, parseEther, formatEther } = require("ethers");
+const { mine } = require("@nomicfoundation/hardhat-network-helpers")
 
 describe("Passport Finance Contract", function () {
     let owner;
     let customer;
+    let otherCustomer;
     let nftFactory;
     let mockErc20;
     let svgGen;
@@ -19,7 +21,7 @@ describe("Passport Finance Contract", function () {
             },
         });
         const _mockErc20 = await ethers.getContractFactory("MockERC20");
-        [owner, customer] = await ethers.getSigners();
+        [owner, customer, otherCustomer] = await ethers.getSigners();
         mockErc20 = await _mockErc20.deploy("MockToken", "MTT");
         nftFactory = await _nft.deploy(owner.address, mockErc20.getAddress());
 
@@ -175,12 +177,7 @@ describe("Passport Finance Contract", function () {
 
             await nftFactory.connect(customer).stakeTokens(tokenId, stakedAmount);
 
-            const _tStakeAoumnt = await nftFactory.stakes(tokenId);
-
-            const blocksToAdvance = blockFreqRate + 20; 
-            for (let i = 0; i < blocksToAdvance; i++) {
-                await ethers.provider.send('evm_mine', []); 
-            }
+            await mine(20);
 
             const newBlockNumber = await ethers.provider.getBlockNumber();
             const blocksSinceLastReward = newBlockNumber - currentBlockNumber;
@@ -189,6 +186,95 @@ describe("Passport Finance Contract", function () {
             const pendingReward = await nftFactory.pendingRewards(tokenId);
             
             expect(pendingReward).to.equal(BigInt(expectedReward));
+        });
+
+        it("Other customer can't illegally claim rewards", async function () {
+            await mockErc20.mint(nftFactory.getAddress(), parseUnits("100000", 18));
+            // Initialize contract state
+            let blockFreqRate = 20;
+            let quantityRate = parseEther("100");
+            let rewardRate = parseEther("0.05");
+            let reductionFactor = 1;
+
+            await nftFactory.updateBlockFreqRate(blockFreqRate);
+            await nftFactory.updateQuantityRate(quantityRate);
+            await nftFactory.updateRewardRate(rewardRate);
+            await nftFactory.updateReduction(reductionFactor);
+
+            const tokenId = 0;
+            const stakedAmount = parseEther("0.1");
+
+            await nftFactory.connect(customer).safeMint(customer.address);
+            await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("100"));
+
+            await nftFactory.connect(customer).stakeTokens(tokenId, stakedAmount);
+
+            await nftFactory.updateMaxElligibleTime(1000);
+
+            await mine(1000);
+
+            expect(await nftFactory.connect(otherCustomer).claimRewards(0)).to.be.reverted;
+        });
+    });
+
+    describe("pendingFrozenRewards", function () {
+        const setup = async () => {
+            await mockErc20.mint(nftFactory.getAddress(), parseUnits("100000", 18));
+            // Initialize contract state
+            let blockFreqRate = 20;
+            let quantityRate = parseEther("1000");
+            let rewardRate = parseEther("0.05");
+            let reductionFactor = 1;
+            const tokenId = 0;
+            const stakedAmount = parseEther("0.1");
+            const currentBlockNumber = await ethers.provider.getBlockNumber();
+
+            await nftFactory.connect(customer).safeMint(customer.address);
+            await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("100"));
+            await nftFactory.connect(customer).stakeTokens(tokenId, stakedAmount);
+
+            await nftFactory.updateMaxElligibleTime(1000);
+
+            await mine(20)
+
+            const newBlockNumber = await ethers.provider.getBlockNumber();
+            const blocksSinceLastReward = newBlockNumber - currentBlockNumber;
+            const rewardCycles = Math.floor(blocksSinceLastReward / blockFreqRate);
+            const expectedReward = parseInt(stakedAmount) * parseInt(rewardRate) / reductionFactor * rewardCycles / parseInt(quantityRate);
+
+            return expectedReward;
+        }
+
+        it("should frozen after terminated", async function () {
+            let expectedReward = await setup()
+
+            await nftFactory.terminate()
+
+            await mine(20)
+            const pendingReward = await nftFactory.pendingRewards(0);
+            
+            expect(pendingReward).to.equal(BigInt(expectedReward));
+        });
+        
+        it("should return 0 regardless after frozen claimed", async function () {
+            await setup()
+
+            await nftFactory.terminate()
+
+            await mine(1000)
+
+            const pendingRewardBeforeClaim = await nftFactory.pendingRewards(0);
+
+            const currentBalance = await mockErc20.balanceOf(customer.address);
+            const expectedRewardAfterClaim = currentBalance + pendingRewardBeforeClaim;
+
+            await nftFactory.connect(customer).claimRewards(0);
+
+            expect(await mockErc20.balanceOf(customer.address)).to.equal(expectedRewardAfterClaim);
+
+            await mine(1000)
+
+            await nftFactory.connect(customer).claimRewards(0);
         });
     });
 
