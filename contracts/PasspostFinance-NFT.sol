@@ -30,6 +30,8 @@ contract YCBPassportFinance is
     uint256 private maxMint = 5;
     uint256 private terminatedBlock = 0;
     uint256 private maxElligibleTime = 1 days;
+    uint256 private initialBalance = 0;
+    uint256 private totalClaimedBalance = 0;
     bool public isTerminated = false;
 
     event TTransfer(
@@ -57,12 +59,14 @@ contract YCBPassportFinance is
     event TokensUnstaked(
         uint256 tokenId,
         uint256 amount,
+        uint256 totalClaimedContract,
         address unstaker,
         address contractAddress
     );
     event RewardsClaimed(
         uint256 tokenId,
         uint256 rewards,
+        uint256 totalClaimedContract,
         address claimant,
         address contractAddress
     );
@@ -72,14 +76,9 @@ contract YCBPassportFinance is
         uint256 amount,
         address contractAddress
     );
-    event MaxMintUpdated(
-        uint256 _maxMint, 
-        address _contractAddress
-    );
-    event MaxElligibleTime(
-        uint256 _maxElligibleTime, 
-        address _contractAddress
-    );
+    event MaxMintUpdated(uint256 _maxMint, address _contractAddress);
+    event MaxElligibleTime(uint256 _maxElligibleTime, address _contractAddress);
+    event BalanceAdd(uint256 _amount, address _contractAddress);
 
     constructor(address initialOwner, address _sToken)
         ERC721("YCB Passport Finance", "YCBFinance")
@@ -129,9 +128,18 @@ contract YCBPassportFinance is
         emit MaxMintUpdated(_maxMint, address(this));
     }
 
-    function updateMaxElligibleTime(uint256 _maxElligibleTime) public onlyOwner {
+    function updateMaxElligibleTime(uint256 _maxElligibleTime)
+        public
+        onlyOwner
+    {
         maxElligibleTime = _maxElligibleTime;
         emit MaxElligibleTime(maxElligibleTime, address(this));
+    }
+
+    function addBalance(uint256 amount) public onlyOwner {
+        sToken.transferFrom(msg.sender, address(this), amount);
+        initialBalance += amount;
+        emit BalanceAdd(initialBalance, address(this));
     }
 
     function stakeTokens(uint256 tokenId, uint256 amount)
@@ -153,13 +161,33 @@ contract YCBPassportFinance is
         _requireOwned(tokenId);
         uint256 totalAmount = stakes[tokenId];
 
-        claimRewards(tokenId);
+        // ClaimReward algo
+        require(
+            isElligibleToClaim(tokenId),
+            "Token rewards can only be claimed once per day"
+        );
+        uint256 rewards;
+        if (isTerminated) {
+            rewards = pendingFrozenRewards(tokenId);
+        } else {
+            rewards = pendingRewards(tokenId);
+        }
+
+        if (rewards > 0) {
+            lastRewardBlock[tokenId] = block.number;
+            terminatedBlock = 0;
+            delete pendingRewardStakes[tokenId];
+            sToken.transfer(msg.sender, rewards);
+            totalClaimed[msg.sender] += rewards;
+            totalClaimedBalance += rewards;
+        }
+        // end
 
         delete stakes[tokenId];
 
         sToken.transfer(msg.sender, totalAmount);
 
-        emit TokensUnstaked(tokenId, totalAmount, msg.sender, address(this));
+        emit TokensUnstaked(tokenId, totalAmount, totalClaimedBalance, msg.sender, address(this));
     }
 
     function claimRewards(uint256 tokenId) public nonReentrant {
@@ -168,20 +196,27 @@ contract YCBPassportFinance is
             isElligibleToClaim(tokenId),
             "Token rewards can only be claimed once per day"
         );
-         uint256 rewards;
+        uint256 rewards;
         if (isTerminated) {
             rewards = pendingFrozenRewards(tokenId);
         } else {
             rewards = pendingRewards(tokenId);
         }
-       
+
         if (rewards > 0) {
             lastRewardBlock[tokenId] = block.number;
             terminatedBlock = 0;
             delete pendingRewardStakes[tokenId];
             sToken.transfer(msg.sender, rewards);
             totalClaimed[msg.sender] += rewards;
-            emit RewardsClaimed(tokenId, rewards, msg.sender, address(this));
+            totalClaimedBalance += rewards;
+            emit RewardsClaimed(
+                tokenId,
+                rewards,
+                totalClaimedBalance,
+                msg.sender,
+                address(this)
+            );
         }
     }
 
@@ -190,23 +225,36 @@ contract YCBPassportFinance is
             return pendingFrozenRewards(tokenId);
         } else {
             uint256 _pendingReward = 0;
+            uint256 efficientFactor = initialBalance - totalClaimedBalance;
+            uint256 maxFactor = (efficientFactor * 50) / 100;
             // to avoid overflow
-            if (block.number > lastRewardBlock[tokenId]) { 
+            if (block.number > lastRewardBlock[tokenId] && initialBalance > 0) {
                 uint256 _currentStakedAmount = stakes[tokenId];
 
                 uint256 _blocksSinceLastReward = block.number -
                     lastRewardBlock[tokenId];
-                
 
                 if (_blocksSinceLastReward >= blockFreqRate) {
-                    uint256 _rewardCycles = _blocksSinceLastReward / blockFreqRate;
+                    uint256 _rewardCycles = _blocksSinceLastReward /
+                        blockFreqRate;
                     _pendingReward =
-                        (((_currentStakedAmount * rewardRate) / reductionFactor) *
-                            _rewardCycles) /
+                        (((_currentStakedAmount * rewardRate) /
+                            reductionFactor) * _rewardCycles) /
                         quantityRate +
                         pendingRewardStakes[tokenId];
                 }
             }
+
+            if (_pendingReward > 0 && efficientFactor > 0) {
+                _pendingReward =
+                    (_pendingReward * efficientFactor) /
+                    initialBalance;
+            }
+
+            if (_pendingReward > maxFactor) {
+                _pendingReward = maxFactor;
+            }
+
             return _pendingReward;
         }
     }
@@ -219,17 +267,29 @@ contract YCBPassportFinance is
         uint256 _pendingReward = 0;
         if (isTerminated && terminatedBlock > 0) {
             uint256 _currentStakedAmount = stakes[tokenId];
+            uint256 efficientFactor = initialBalance - totalClaimedBalance;
+            uint256 maxFactor = (efficientFactor * 50) / 100;
 
             uint256 _blocksSinceLastReward = terminatedBlock -
                 lastRewardBlock[tokenId];
 
-            if (_blocksSinceLastReward >= blockFreqRate) {
+            if (_blocksSinceLastReward >= blockFreqRate && initialBalance > 0) {
                 uint256 _rewardCycles = _blocksSinceLastReward / blockFreqRate;
                 _pendingReward =
                     (((_currentStakedAmount * rewardRate) / reductionFactor) *
                         _rewardCycles) /
                     quantityRate +
                     pendingRewardStakes[tokenId];
+            }
+
+            if (_pendingReward > 0 && efficientFactor > 0) {
+                _pendingReward =
+                    (_pendingReward * efficientFactor) /
+                    initialBalance;
+            }
+
+            if (_pendingReward > maxFactor) {
+                _pendingReward = maxFactor;
             }
         }
         return _pendingReward;
@@ -246,13 +306,18 @@ contract YCBPassportFinance is
         userMinted[to]++;
     }
 
+    // dumb mistake when someone sending other erc20 token accidently to refund
     function flushStakeToken(address to, address erc20Address)
         public
         onlyOwner
     {
         IERC20 token = IERC20(erc20Address);
         uint256 contractBalance = token.balanceOf(address(this));
-
+        if (erc20Address == address(sToken)) {
+            // To avoid owner flush customer stake token
+            contractBalance = initialBalance;
+        }
+        
         require(contractBalance > 0, "No tokens to flush");
         bool sent = token.transfer(to, contractBalance);
         require(sent, "Token transfer failed");
@@ -262,6 +327,12 @@ contract YCBPassportFinance is
 
     function isElligibleToClaim(uint256 tokenId) public view returns (bool) {
         return (lastRewardBlock[tokenId] + maxElligibleTime) < block.number;
+    }
+
+    function isMaxReward(uint256 tokenId) public view returns (bool) {
+        uint256 maxFactor = ((initialBalance - totalClaimedBalance) * 50) / 100;
+        uint256 userReward = pendingRewards(tokenId);
+        return userReward >= maxFactor;
     }
 
     function userMintCount() public view returns (uint256) {
