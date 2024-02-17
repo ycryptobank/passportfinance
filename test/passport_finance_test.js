@@ -61,8 +61,27 @@ describe("Passport Finance Contract", function () {
     it("Unstake token", async function () {
         await nftFactory.connect(customer).safeMint(customer.address);
         await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("1000"));
-        await expect(nftFactory.connect(customer).stakeTokens(0, parseEther("1"))).to.not.be.reverted;
-        await nftFactory.pause();
+        await mockErc20.mint(owner.address, parseUnits("100000", 18));
+        await mockErc20.connect(owner).approve(nftFactory.getAddress(), parseUnits("100000", 18));
+        await nftFactory.connect(owner).addBalance(parseEther("100000"));
+
+        await expect(nftFactory.connect(customer).stakeTokens(0, parseEther("1000"))).to.not.be.reverted;
+        await nftFactory.updateMaxElligibleTime(1000);
+        await mine(1000);
+        const beforeBalance = await mockErc20.balanceOf(customer.address);
+
+        await expect(nftFactory.connect(customer).unstakeTokens(0)).to.not.be.reverted;
+
+        const expectation = beforeBalance + parseEther("1000") + parseEther("2.5"); // assuming default 20 blockfrequency  = 0.05 * 50 = 2.5 rewards for 1000 tokens staked
+
+        // unstake procedure call again to check user reward , should be 0
+        await mine(1000);
+        await expect(nftFactory.connect(customer).unstakeTokens(0)).to.not.be.reverted;
+       
+        const afterBalance = await mockErc20.balanceOf(customer.address);
+
+        expect(afterBalance).to.greaterThan(beforeBalance);
+        expect(afterBalance).to.equal(expectation);
     });
 
     describe("updateReduction", function () {
@@ -127,7 +146,10 @@ describe("Passport Finance Contract", function () {
 
     describe("flushStakeToken", function () {
         it("Should allow the owner to flush stake tokens and emit event", async function () {
-            await mockErc20.mint(nftFactory.getAddress(), parseUnits("1000", 18));
+            await mockErc20.mint(owner.address, parseUnits("100000", 18));
+            await mockErc20.approve(nftFactory.getAddress(), parseEther("100000"));
+            await nftFactory.connect(owner).addBalance(parseEther("100000"));
+
             const initialBalance = await mockErc20.balanceOf(owner.address);
             const contractBalance = await mockErc20.balanceOf(nftFactory.getAddress());
 
@@ -156,7 +178,8 @@ describe("Passport Finance Contract", function () {
 
     describe("pendingRewards", function () {
         it("Should correctly calculate pending rewards", async function () {
-            await mockErc20.mint(nftFactory.getAddress(), parseUnits("100000", 18));
+            await mockErc20.mint(owner.address, parseUnits("100000", 18));
+
             // Initialize contract state
             let blockFreqRate = 20;
             let quantityRate = parseEther("100");
@@ -184,8 +207,15 @@ describe("Passport Finance Contract", function () {
             const rewardCycles = Math.floor(blocksSinceLastReward / blockFreqRate);
             const expectedReward = parseInt(stakedAmount) * parseInt(rewardRate) / reductionFactor * rewardCycles / parseInt(quantityRate);
             const pendingReward = await nftFactory.pendingRewards(tokenId);
-            
-            expect(pendingReward).to.equal(BigInt(expectedReward));
+
+            expect(pendingReward).to.equal(0);
+
+            await mockErc20.connect(owner).approve(nftFactory.getAddress(), parseUnits("100000", 18));
+            await nftFactory.connect(owner).addBalance(parseEther("100000"));
+
+            const pendingRewardAfter = await nftFactory.pendingRewards(tokenId);
+
+            expect(pendingRewardAfter).to.equal(BigInt(expectedReward));
         });
 
         it("Other customer can't illegally claim rewards", async function () {
@@ -219,7 +249,7 @@ describe("Passport Finance Contract", function () {
 
     describe("pendingFrozenRewards", function () {
         const setup = async () => {
-            await mockErc20.mint(nftFactory.getAddress(), parseUnits("100000", 18));
+            await mockErc20.mint(owner.address, parseUnits("100000", 18));
             // Initialize contract state
             let blockFreqRate = 20;
             let quantityRate = parseEther("1000");
@@ -242,6 +272,9 @@ describe("Passport Finance Contract", function () {
             const rewardCycles = Math.floor(blocksSinceLastReward / blockFreqRate);
             const expectedReward = parseInt(stakedAmount) * parseInt(rewardRate) / reductionFactor * rewardCycles / parseInt(quantityRate);
 
+            await mockErc20.connect(owner).approve(nftFactory.getAddress(), parseUnits("100000", 18));
+            await nftFactory.connect(owner).addBalance(parseEther("100000"));
+
             return expectedReward;
         }
 
@@ -252,10 +285,10 @@ describe("Passport Finance Contract", function () {
 
             await mine(20)
             const pendingReward = await nftFactory.pendingRewards(0);
-            
+
             expect(pendingReward).to.equal(BigInt(expectedReward));
         });
-        
+
         it("should return 0 regardless after frozen claimed", async function () {
             await setup()
 
@@ -275,6 +308,8 @@ describe("Passport Finance Contract", function () {
             await mine(1000)
 
             await nftFactory.connect(customer).claimRewards(0);
+
+            expect(await mockErc20.balanceOf(customer.address)).to.equal(expectedRewardAfterClaim);
         });
     });
 
