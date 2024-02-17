@@ -59,6 +59,7 @@ contract YCBPassportFinance is
     event TokensUnstaked(
         uint256 tokenId,
         uint256 amount,
+        uint256 totalClaimedContract,
         address unstaker,
         address contractAddress
     );
@@ -186,7 +187,7 @@ contract YCBPassportFinance is
 
         sToken.transfer(msg.sender, totalAmount);
 
-        emit TokensUnstaked(tokenId, totalAmount, msg.sender, address(this));
+        emit TokensUnstaked(tokenId, totalAmount, totalClaimedBalance, msg.sender, address(this));
     }
 
     function claimRewards(uint256 tokenId) public nonReentrant {
