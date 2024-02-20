@@ -12,14 +12,7 @@ describe("Passport Finance Contract", function () {
     let svgGen;
 
     beforeEach(async function () {
-        const _svggen = await ethers.getContractFactory("PassportSVGGen");
-        svgGen = await _svggen.deploy();
-        const _address = await svgGen.getAddress();
-        const _nft = await ethers.getContractFactory("YCBPassportFinance", {
-            libraries: {
-                PassportSVGGen: _address,
-            },
-        });
+        const _nft = await ethers.getContractFactory("YCBPassportFinance");
         const _mockErc20 = await ethers.getContractFactory("MockERC20");
         [owner, customer, otherCustomer] = await ethers.getSigners();
         mockErc20 = await _mockErc20.deploy("MockToken", "MTT");
