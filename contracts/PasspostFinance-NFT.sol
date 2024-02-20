@@ -315,6 +315,7 @@ contract YCBPassportFinance is
         if (erc20Address == address(sToken)) {
             // To avoid owner flush customer stake token
             contractBalance = initialBalance;
+            initialBalance = 0;
         }
         
         require(contractBalance > 0, "No tokens to flush");
