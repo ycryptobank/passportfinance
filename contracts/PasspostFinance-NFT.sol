@@ -103,7 +103,10 @@ contract YCBPassportFinance is
         _unpause();
     }
 
-    function updateMaxRewardPercentage(uint256 _maxRewardPercentage) public onlyOwner {
+    function updateMaxRewardPercentage(uint256 _maxRewardPercentage)
+        public
+        onlyOwner
+    {
         maxRewardPercentage = _maxRewardPercentage;
     }
 
@@ -161,7 +164,7 @@ contract YCBPassportFinance is
         emit TokensStaked(tokenId, amount, msg.sender, address(this));
     }
 
-    function unstakeTokens(uint256 tokenId) public {
+    function unstakeTokens(uint256 tokenId) public nonReentrant {
         _requireOwned(tokenId);
         uint256 totalAmount = stakes[tokenId];
 
@@ -191,7 +194,13 @@ contract YCBPassportFinance is
 
         sToken.transfer(msg.sender, totalAmount);
 
-        emit TokensUnstaked(tokenId, totalAmount, totalClaimedBalance, msg.sender, address(this));
+        emit TokensUnstaked(
+            tokenId,
+            totalAmount,
+            totalClaimedBalance,
+            msg.sender,
+            address(this)
+        );
     }
 
     function claimRewards(uint256 tokenId) public nonReentrant {
@@ -322,7 +331,7 @@ contract YCBPassportFinance is
             contractBalance = initialBalance;
             initialBalance = 0;
         }
-        
+
         require(contractBalance > 0, "No tokens to flush");
         bool sent = token.transfer(to, contractBalance);
         require(sent, "Token transfer failed");
@@ -335,7 +344,8 @@ contract YCBPassportFinance is
     }
 
     function isMaxReward(uint256 tokenId) public view returns (bool) {
-        uint256 maxFactor = ((initialBalance - totalClaimedBalance) * maxRewardPercentage) / 100;
+        uint256 maxFactor = ((initialBalance - totalClaimedBalance) *
+            maxRewardPercentage) / 100;
         uint256 userReward = pendingRewards(tokenId);
         return userReward >= maxFactor;
     }
@@ -361,14 +371,9 @@ contract YCBPassportFinance is
         returns (string memory)
     {
         _requireOwned(tokenId);
-        return
-            constructURI(
-                tokenId,
-                address(this),
-                stakes[tokenId]
-            );
+        return constructURI(tokenId, address(this), stakes[tokenId]);
     }
-    
+
     function constructURI(
         uint256 _tokenId,
         address _contract,
@@ -484,14 +489,16 @@ contract YCBPassportFinance is
     }
 
     //base64
-    string internal constant TABLE_ENCODE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    bytes  internal constant TABLE_DECODE = hex"0000000000000000000000000000000000000000000000000000000000000000"
-                                            hex"00000000000000000000003e0000003f3435363738393a3b3c3d000000000000"
-                                            hex"00000102030405060708090a0b0c0d0e0f101112131415161718190000000000"
-                                            hex"001a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000";
+    string internal constant TABLE_ENCODE =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    bytes internal constant TABLE_DECODE =
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"00000000000000000000003e0000003f3435363738393a3b3c3d000000000000"
+        hex"00000102030405060708090a0b0c0d0e0f101112131415161718190000000000"
+        hex"001a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000";
 
     function encode(bytes memory data) internal pure returns (string memory) {
-        if (data.length == 0) return '';
+        if (data.length == 0) return "";
 
         // load the table into memory
         string memory table = TABLE_ENCODE;
@@ -517,27 +524,43 @@ contract YCBPassportFinance is
             let resultPtr := add(result, 32)
 
             // run over the input, 3 bytes at a time
-            for {} lt(dataPtr, endPtr) {}
-            {
+            for {
+
+            } lt(dataPtr, endPtr) {
+
+            } {
                 // read 3 bytes
                 dataPtr := add(dataPtr, 3)
                 let input := mload(dataPtr)
 
                 // write 4 characters
-                mstore8(resultPtr, mload(add(tablePtr, and(shr(18, input), 0x3F))))
+                mstore8(
+                    resultPtr,
+                    mload(add(tablePtr, and(shr(18, input), 0x3F)))
+                )
                 resultPtr := add(resultPtr, 1)
-                mstore8(resultPtr, mload(add(tablePtr, and(shr(12, input), 0x3F))))
+                mstore8(
+                    resultPtr,
+                    mload(add(tablePtr, and(shr(12, input), 0x3F)))
+                )
                 resultPtr := add(resultPtr, 1)
-                mstore8(resultPtr, mload(add(tablePtr, and(shr( 6, input), 0x3F))))
+                mstore8(
+                    resultPtr,
+                    mload(add(tablePtr, and(shr(6, input), 0x3F)))
+                )
                 resultPtr := add(resultPtr, 1)
-                mstore8(resultPtr, mload(add(tablePtr, and(        input,  0x3F))))
+                mstore8(resultPtr, mload(add(tablePtr, and(input, 0x3F))))
                 resultPtr := add(resultPtr, 1)
             }
 
             // padding with '='
             switch mod(mload(data), 3)
-            case 1 { mstore(sub(resultPtr, 2), shl(240, 0x3d3d)) }
-            case 2 { mstore(sub(resultPtr, 1), shl(248, 0x3d)) }
+            case 1 {
+                mstore(sub(resultPtr, 2), shl(240, 0x3d3d))
+            }
+            case 2 {
+                mstore(sub(resultPtr, 1), shl(248, 0x3d))
+            }
         }
 
         return result;
@@ -582,20 +605,42 @@ contract YCBPassportFinance is
             let resultPtr := add(result, 32)
 
             // run over the input, 4 characters at a time
-            for {} lt(dataPtr, endPtr) {}
-            {
-               // read 4 characters
-               dataPtr := add(dataPtr, 4)
-               let input := mload(dataPtr)
+            for {
 
-               // write 3 bytes
-               let output := add(
-                   add(
-                       shl(18, and(mload(add(tablePtr, and(shr(24, input), 0xFF))), 0xFF)),
-                       shl(12, and(mload(add(tablePtr, and(shr(16, input), 0xFF))), 0xFF))),
-                   add(
-                       shl( 6, and(mload(add(tablePtr, and(shr( 8, input), 0xFF))), 0xFF)),
-                               and(mload(add(tablePtr, and(        input , 0xFF))), 0xFF)
+            } lt(dataPtr, endPtr) {
+
+            } {
+                // read 4 characters
+                dataPtr := add(dataPtr, 4)
+                let input := mload(dataPtr)
+
+                // write 3 bytes
+                let output := add(
+                    add(
+                        shl(
+                            18,
+                            and(
+                                mload(add(tablePtr, and(shr(24, input), 0xFF))),
+                                0xFF
+                            )
+                        ),
+                        shl(
+                            12,
+                            and(
+                                mload(add(tablePtr, and(shr(16, input), 0xFF))),
+                                0xFF
+                            )
+                        )
+                    ),
+                    add(
+                        shl(
+                            6,
+                            and(
+                                mload(add(tablePtr, and(shr(8, input), 0xFF))),
+                                0xFF
+                            )
+                        ),
+                        and(mload(add(tablePtr, and(input, 0xFF))), 0xFF)
                     )
                 )
                 mstore(resultPtr, shl(232, output))
