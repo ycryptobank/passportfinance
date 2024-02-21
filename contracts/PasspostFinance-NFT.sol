@@ -28,9 +28,10 @@ contract YCBPassportFinance is
     uint256 private quantityRate = 1000 ether;
     uint256 private maxMint = 5;
     uint256 private terminatedBlock = 0;
-    uint256 private maxElligibleTime = 43000;
+    uint256 private maxElligibleTime = 28800;
     uint256 private initialBalance = 0;
     uint256 private totalClaimedBalance = 0;
+    uint256 private maxRewardPercentage = 50;
     bool public isTerminated = false;
 
     event TTransfer(
@@ -100,6 +101,10 @@ contract YCBPassportFinance is
 
     function unpause() public onlyOwner {
         _unpause();
+    }
+
+    function updateMaxRewardPercentage(uint256 _maxRewardPercentage) public onlyOwner {
+        maxRewardPercentage = _maxRewardPercentage;
     }
 
     function updateReduction(uint256 _reductionFactor) public onlyOwner {
@@ -225,7 +230,7 @@ contract YCBPassportFinance is
         } else {
             uint256 _pendingReward = 0;
             uint256 efficientFactor = initialBalance - totalClaimedBalance;
-            uint256 maxFactor = (efficientFactor * 50) / 100;
+            uint256 maxFactor = (efficientFactor * maxRewardPercentage) / 100;
             // to avoid overflow
             if (block.number > lastRewardBlock[tokenId] && initialBalance > 0) {
                 uint256 _currentStakedAmount = stakes[tokenId];
@@ -267,7 +272,7 @@ contract YCBPassportFinance is
         if (isTerminated && terminatedBlock > 0) {
             uint256 _currentStakedAmount = stakes[tokenId];
             uint256 efficientFactor = initialBalance - totalClaimedBalance;
-            uint256 maxFactor = (efficientFactor * 50) / 100;
+            uint256 maxFactor = (efficientFactor * maxRewardPercentage) / 100;
 
             uint256 _blocksSinceLastReward = terminatedBlock -
                 lastRewardBlock[tokenId];
@@ -330,7 +335,7 @@ contract YCBPassportFinance is
     }
 
     function isMaxReward(uint256 tokenId) public view returns (bool) {
-        uint256 maxFactor = ((initialBalance - totalClaimedBalance) * 50) / 100;
+        uint256 maxFactor = ((initialBalance - totalClaimedBalance) * maxRewardPercentage) / 100;
         uint256 userReward = pendingRewards(tokenId);
         return userReward >= maxFactor;
     }
