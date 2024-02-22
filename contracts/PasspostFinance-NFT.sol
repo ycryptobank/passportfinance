@@ -268,6 +268,10 @@ contract YCBPassportFinance is
                 _pendingReward = maxFactor;
             }
 
+            if (_pendingReward == 0) {
+                _pendingReward = pendingRewardStakes[tokenId];
+            }
+
             return _pendingReward;
         }
     }
@@ -304,6 +308,9 @@ contract YCBPassportFinance is
             if (_pendingReward > maxFactor) {
                 _pendingReward = maxFactor;
             }
+        }
+        if (_pendingReward == 0) {
+            _pendingReward = pendingRewardStakes[tokenId];
         }
         return _pendingReward;
     }
