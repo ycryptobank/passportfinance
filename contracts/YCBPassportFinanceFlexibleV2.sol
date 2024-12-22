@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract YCBPassportFinance is
+contract YCBPassportFinanceFlexibleV2 is
     ERC721,
     ERC721Pausable,
     Ownable,
@@ -33,6 +33,7 @@ contract YCBPassportFinance is
     uint256 private totalClaimedBalance = 0;
     uint256 private maxRewardPercentage = 50;
     bool public isTerminated = false;
+    bool public isStarted = false;
 
     event TTransfer(
         address indexed from,
@@ -81,7 +82,7 @@ contract YCBPassportFinance is
     event BalanceAdd(uint256 _amount, address _contractAddress);
 
     constructor(address _initialOwner, address _sToken)
-        ERC721("YCB Passport Finance", "YCBFinance")
+        ERC721("YCB Passport V2", "Campaign Yield")
         Ownable(_initialOwner)
     {
         sToken = IERC20(_sToken);
@@ -93,6 +94,10 @@ contract YCBPassportFinance is
         terminatedBlock = block.number;
         isTerminated = true;
         pause();
+    }
+
+    function startCampaign() public onlyOwner {
+        isStarted = true;
     }
 
     function pause() public onlyOwner {
@@ -152,6 +157,7 @@ contract YCBPassportFinance is
     function stakeTokens(uint256 tokenId, uint256 amount)
         public
         whenNotPaused
+        whenCampaignStarted
         nonReentrant
     {
         _requireOwned(tokenId);
@@ -361,6 +367,11 @@ contract YCBPassportFinance is
         return userMinted[msg.sender];
     }
 
+    modifier whenCampaignStarted() {
+        require(isStarted, "The campaign has not started yet");
+        _;
+    }
+
     // The following functions are overrides required by Solidity.
     function _update(
         address to,
@@ -403,9 +414,9 @@ contract YCBPassportFinance is
                         bytes(
                             abi.encodePacked(
                                 '{"name":"',
-                                "YCB - Passport Finance",
+                                "Passport Finance",
                                 '", "description":"',
-                                "YCB - DeFi Yield",
+                                "Flexible Yield",
                                 '", "image": "',
                                 "data:image/svg+xml;base64,",
                                 image,

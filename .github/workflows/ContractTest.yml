@@ -17,6 +17,9 @@ jobs:
           npm install
 
       - name: ci clean
+        env:
+          HARDHAT_ARBITRUM_URL: ${{ secrets.HARDHAT_ARBITRUM_URL }}
+          HARDHAT_ARBITRUM_ACCOUNT_PRIVATE_KEY: ${{ secrets.HARDHAT_ARBITRUM_ACCOUNT_PRIVATE_KEY }}
         run: |
           npm ci
           npx hardhat test
