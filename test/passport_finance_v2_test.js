@@ -12,7 +12,7 @@ describe("Passport Finance Contract", function () {
     let svgGen;
 
     beforeEach(async function () {
-        const _nft = await ethers.getContractFactory("YCBPassportFinance");
+        const _nft = await ethers.getContractFactory("YCBPassportFinanceFlexibleV2");
         const _mockErc20 = await ethers.getContractFactory("MockERC20");
         [owner, customer, otherCustomer] = await ethers.getSigners();
         mockErc20 = await _mockErc20.deploy("MockToken", "MTT");
@@ -39,7 +39,14 @@ describe("Passport Finance Contract", function () {
         expect(_tokenUri).to.not.be.reverted;
     });
 
+    it("Stake token when campaign not started", async function () {
+        await nftFactory.connect(customer).safeMint(customer.address);
+        await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("1000"));
+        await expect(nftFactory.connect(customer).stakeTokens(0, parseEther("1"))).to.be.reverted;
+    });
+
     it("Stake token", async function () {
+        await nftFactory.connect(owner).startCampaign();
         await nftFactory.connect(customer).safeMint(customer.address);
         await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("1000"));
         await expect(nftFactory.connect(customer).stakeTokens(0, parseEther("1"))).to.not.be.reverted;
@@ -52,6 +59,7 @@ describe("Passport Finance Contract", function () {
     });
 
     it("Unstake token", async function () {
+        await nftFactory.connect(owner).startCampaign();
         await nftFactory.connect(customer).safeMint(customer.address);
         await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("1000"));
         await mockErc20.mint(owner.address, parseUnits("100000", 18));
@@ -191,6 +199,7 @@ describe("Passport Finance Contract", function () {
             await nftFactory.connect(customer).safeMint(customer.address);
             await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("100"));
 
+            await nftFactory.connect(owner).startCampaign();
             await nftFactory.connect(customer).stakeTokens(tokenId, stakedAmount);
 
             await mine(20);
@@ -230,6 +239,7 @@ describe("Passport Finance Contract", function () {
             await nftFactory.connect(customer).safeMint(customer.address);
             await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("100"));
 
+            await nftFactory.connect(owner).startCampaign();
             await nftFactory.connect(customer).stakeTokens(tokenId, stakedAmount);
 
             await nftFactory.updateMaxElligibleTime(1000);
@@ -254,6 +264,8 @@ describe("Passport Finance Contract", function () {
 
             await nftFactory.connect(customer).safeMint(customer.address);
             await mockErc20.connect(customer).approve(nftFactory.getAddress(), parseEther("100"));
+
+            await nftFactory.connect(owner).startCampaign();
             await nftFactory.connect(customer).stakeTokens(tokenId, stakedAmount);
 
             await nftFactory.updateMaxElligibleTime(1000);
