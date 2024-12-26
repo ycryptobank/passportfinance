@@ -68,7 +68,7 @@ contract YCBPassportFinanceFlexibleV2 is
         uint256 tokenId,
         uint256 rewards,
         uint256 totalClaimedContract,
-        address claimant,
+        address claimer,
         address contractAddress
     );
     event TokensFlushed(
@@ -341,13 +341,12 @@ contract YCBPassportFinanceFlexibleV2 is
         uint256 contractBalance = token.balanceOf(address(this));
         if (erc20Address == address(sToken)) {
             // To avoid owner flush customer stake token
-            contractBalance = initialBalance;
+            contractBalance = initialBalance - totalClaimedBalance;
             initialBalance = 0;
         }
 
         require(contractBalance > 0, "No tokens to flush");
-        bool sent = token.transfer(to, contractBalance);
-        require(sent, "Token transfer failed");
+        token.transfer(to, contractBalance);
 
         emit TokensFlushed(to, erc20Address, contractBalance, address(this));
     }
